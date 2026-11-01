@@ -59,6 +59,10 @@ const PENDANT_LABELS = {
   pendantCenter: 'Center gem',
 };
 
+// "100%" = BASE percent of the stage block. Lower BASE = smaller character by default.
+const BASE = 78;
+const ZOOMS = [100, 80, 75, 50];
+
 const layout = new Layout({ fit: Fit.Contain, alignment: Alignment.Center });
 
 const hexToRgb = (hex) => [
@@ -108,6 +112,7 @@ export default function Page() {
   const [chargeActive, setChargeActive] = useState(OUTFITS[0].active);
   const [chargeInactive, setChargeInactive] = useState(OUTFITS[0].inactive);
   const [pendant, setPendant] = useState(PENDANT_DEFAULTS);
+  const [zoom, setZoom] = useState(100);
   const [fired, setFired] = useState({ blink: 0, shield: 0, sword: 0 });
 
   // state machine inputs
@@ -201,8 +206,41 @@ export default function Page() {
       {/* ================= HERO — LIVE DEMO ================= */}
       <div className="layout">
         <div className="stage">
+          <div
+            role="group"
+            aria-label="Character size"
+            style={{
+              position: 'absolute', left: 24, bottom: 24, zIndex: 6,
+              display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px',
+              borderRadius: 999, background: 'rgba(0,0,0,0.35)',
+              border: '1px solid rgba(255,255,255,0.2)',
+            }}
+          >
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: '#fff', padding: '0 6px' }}>Size</span>
+            {ZOOMS.map((z) => (
+              <button
+                key={z}
+                onClick={() => setZoom(z)}
+                style={{
+                  cursor: 'pointer', border: 0, borderRadius: 999, padding: '7px 12px',
+                  fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600,
+                  background: zoom === z ? '#fff' : 'transparent',
+                  color: zoom === z ? '#111' : '#fff',
+                }}
+              >
+                {z}%
+              </button>
+            ))}
+          </div>
           <div className="pane show">
-            <div className="canvas-wrap">
+            <div
+              className="canvas-wrap"
+              style={{
+                width: `${(BASE * zoom) / 100}%`,
+                height: `${(BASE * zoom) / 100}%`,
+                transition: 'width .2s ease, height .2s ease',
+              }}
+            >
               <RiveComponent />
             </div>
           </div>
