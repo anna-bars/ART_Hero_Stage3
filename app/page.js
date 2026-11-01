@@ -1,0 +1,681 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import {
+  useRive,
+  useStateMachineInput,
+  Layout,
+  Fit,
+  Alignment,
+} from '@rive-app/react-webgl2';
+
+// ---- Names exactly as they appear in art_hero_stage3.riv ----
+const SM = 'Adult Avatar Controller';
+const VM = 'HeroVM';
+
+const OUTFITS = [
+  { v: 0, name: 'Purple', dot: '#8559DD', active: 'FF2BD6', inactive: '5B3AA3',
+    pendant: { pendantChain: 'E8ADD0', pendantBack: 'BFADE8', pendantBase: '6F3FCE', pendantAccent: '8559DD', pendantCenter: '9367EB' } },
+  { v: 1, name: 'Blue', dot: '#3B82F6', active: '00E5FF', inactive: '4851AF',
+    pendant: { pendantChain: 'ADB3E8', pendantBack: 'ADC3E8', pendantBase: '3F6ACE', pendantAccent: '597CDD', pendantCenter: '67A5EB' } },
+  { v: 2, name: 'Green', dot: '#3FAE6A', active: 'B8FF3C', inactive: '3E9566',
+    pendant: { pendantChain: 'BFE8AD', pendantBack: 'B0E8AD', pendantBase: '62CE3F', pendantAccent: '63DD59', pendantCenter: '7FEB67' } },
+  { v: 3, name: 'Red', dot: '#E04B4B', active: 'FF2D2D', inactive: 'BC4343',
+    pendant: { pendantChain: 'E8ADAD', pendantBack: 'E8ADAD', pendantBase: 'CE3F3F', pendantAccent: 'DD5959', pendantCenter: 'EB6767' } },
+  { v: 4, name: 'Gold', dot: '#E5B53A', active: 'FFE600', inactive: 'CF9C25',
+    pendant: { pendantChain: 'E8E5AD', pendantBack: 'E8E1AD', pendantBase: 'CEAF3F', pendantAccent: 'DDCD59', pendantCenter: 'EBD267' } },
+  { v: 5, name: 'Teal', dot: '#1FA3A0', active: 'FECF3B', inactive: '177173',
+    pendant: { pendantChain: 'ADDAE8', pendantBack: 'ADE8E6', pendantBase: '3FCEAC', pendantAccent: '59DDD8', pendantCenter: '67EBE6' } },
+  { v: 6, name: 'Rose', dot: '#E26A9B', active: '33E4FE', inactive: 'A62A6B',
+    pendant: { pendantChain: 'E8ADCE', pendantBack: 'E8ADD8', pendantBase: 'CE3FC3', pendantAccent: 'DD59B4', pendantCenter: 'EB67D4' } },
+  { v: 7, name: 'Graphite', dot: '#4B4E5B', active: 'FD881F', inactive: '4B4E5B',
+    pendant: { pendantChain: '7A7D8D', pendantBack: '727789', pendantBase: '2C2D35', pendantAccent: '3B3F48', pendantCenter: '585C6B' } },
+];
+
+const SKINS = [
+  [0, 'Skin-Light'], [1, 'Skin-Palest'], [2, 'Skin-Medium'], [3, 'Skin-Tan'],
+  [4, 'Skin-Deep'], [5, 'Skin-Ebony'], [6, 'Skin-Bronze'], [7, 'Skin-Umber'],
+];
+const HAIR_STYLES = [
+  [0, 'Main-Hair'], [1, 'Hair-Dark-Brown'], [2, 'Hair-Red-Orange'], [3, 'Hair-Afro'], [4, 'Hair-Front'],
+];
+const HAIR_COLORS = [
+  [0, 'Dark-Brown'], [1, 'Chestnut'], [2, 'Auburn'], [3, 'Orange'], [4, 'Blonde'], [5, 'Silver'],
+  [6, 'Black'], [7, 'Platinum'], [8, 'Rose'], [9, 'Teal'], [10, 'Violet'], [11, 'Burgundy'],
+  [12, 'Grey'], [13, 'Copper'], [14, 'Blue'], [15, 'Mint'], [16, 'Pastel-Pink'],
+];
+const EYES = [
+  [0, 'dark-brown'], [1, 'dark-green'], [2, 'dark-hazel'], [3, 'dark-blue_gray'], [4, 'dark-blue_amber'],
+  [5, 'dark-violet'], [6, 'dark-teal'], [7, 'dark-silver'], [8, 'dark-rose'], [9, 'dark-ruby'],
+  [10, 'dark-gold'], [11, 'dark-sky'], [12, 'dark-lime'],
+];
+
+const PENDANT_DEFAULTS = OUTFITS[0].pendant;
+const PENDANT_LABELS = {
+  pendantChain: 'Chain',
+  pendantBack: 'Back',
+  pendantBase: 'Base',
+  pendantAccent: 'Accent',
+  pendantCenter: 'Center gem',
+};
+
+const layout = new Layout({ fit: Fit.Contain, alignment: Alignment.Center });
+
+const hexToRgb = (hex) => [
+  parseInt(hex.slice(0, 2), 16),
+  parseInt(hex.slice(2, 4), 16),
+  parseInt(hex.slice(4, 6), 16),
+];
+
+export default function Page() {
+  const { rive, RiveComponent } = useRive({
+    src: '/art_hero_stage3.riv',
+    stateMachines: SM,
+    autoplay: true,
+    layout,
+  });
+
+  const outfitIn = useStateMachineInput(rive, SM, 'outfitColor');
+  const eyeIn = useStateMachineInput(rive, SM, 'eyeColor');
+  const hairColorIn = useStateMachineInput(rive, SM, 'hairColor');
+  const hairVarIn = useStateMachineInput(rive, SM, 'hairVariants');
+  const skinIn = useStateMachineInput(rive, SM, 'skinVariants');
+  const sunIn = useStateMachineInput(rive, SM, 'Sunglasses');
+  const talkIn = useStateMachineInput(rive, SM, 'isTalking');
+  const celebIn = useStateMachineInput(rive, SM, 'isCelebrating');
+  const blinkIn = useStateMachineInput(rive, SM, 'Blink');
+  const shieldGlintIn = useStateMachineInput(rive, SM, 'ShieldGlint');
+  const swordGlintIn = useStateMachineInput(rive, SM, 'SwordGlint');
+
+  const ready = !!(outfitIn && eyeIn && hairColorIn && hairVarIn && skinIn && sunIn && talkIn && celebIn);
+
+  // appearance
+  const [outfit, setOutfit] = useState(0);
+  const [eye, setEye] = useState(0);
+  const [hairColor, setHairColor] = useState(0);
+  const [hairVar, setHairVar] = useState(0);
+  const [skin, setSkin] = useState(0);
+  const [sun, setSun] = useState(0);
+  // states
+  const [talking, setTalking] = useState(false);
+  const [celebrating, setCelebrating] = useState(false);
+  // view model
+  const [instance, setInstance] = useState('Purple');
+  const [vmi, setVmi] = useState(null);
+  const [shield, setShield] = useState(0);
+  const [sword, setSword] = useState(0);
+  const [letter, setLetter] = useState('A');
+  const [chargeActive, setChargeActive] = useState(OUTFITS[0].active);
+  const [chargeInactive, setChargeInactive] = useState(OUTFITS[0].inactive);
+  const [pendant, setPendant] = useState(PENDANT_DEFAULTS);
+  const [fired, setFired] = useState({ blink: 0, shield: 0, sword: 0 });
+
+  // state machine inputs
+  useEffect(() => { if (outfitIn) outfitIn.value = outfit; }, [outfitIn, outfit]);
+  useEffect(() => { if (eyeIn) eyeIn.value = eye; }, [eyeIn, eye]);
+  useEffect(() => { if (hairColorIn) hairColorIn.value = hairColor; }, [hairColorIn, hairColor]);
+  useEffect(() => { if (hairVarIn) hairVarIn.value = hairVar; }, [hairVarIn, hairVar]);
+  useEffect(() => { if (skinIn) skinIn.value = skin; }, [skinIn, skin]);
+  useEffect(() => { if (sunIn) sunIn.value = sun; }, [sunIn, sun]);
+  useEffect(() => { if (talkIn) talkIn.value = talking; }, [talkIn, talking]);
+  useEffect(() => { if (celebIn) celebIn.value = celebrating; }, [celebIn, celebrating]);
+
+  // Only values the user has touched are ever written to the view model.
+  // Everything else keeps the values authored in Rive.
+  const touched = useRef({ shield: null, sword: null, letter: null, colors: {} });
+  const [bindNonce, setBindNonce] = useState(0);
+
+  const writeColor = (inst, key, hex) => {
+    const c = hexToRgb(hex);
+    inst.color(key).rgb(c[0], c[1], c[2]);
+  };
+
+  // bind the chosen HeroVM instance, then re-apply ONLY what the user changed
+  useEffect(() => {
+    if (!rive) return;
+    try {
+      const vm = rive.viewModelByName(VM);
+      const inst = vm && vm.instanceByName(instance);
+      if (!inst) return;
+      rive.bindViewModelInstance(inst);
+      const t = touched.current;
+      if (t.shield !== null) inst.number('shieldCharge').value = t.shield;
+      if (t.sword !== null) inst.number('swordCharge').value = t.sword;
+      if (t.letter !== null) inst.string('beltLetter').value = t.letter;
+      Object.entries(t.colors).forEach(([k, hex]) => writeColor(inst, k, hex));
+      setVmi(inst);
+    } catch (err) {
+      console.warn('HeroVM binding failed', err);
+    }
+  }, [rive, instance, bindNonce]);
+
+  const changeShield = (n) => {
+    setShield(n);
+    touched.current.shield = n;
+    try { if (vmi) vmi.number('shieldCharge').value = n; } catch (e) { console.warn(e); }
+  };
+  const changeSword = (n) => {
+    setSword(n);
+    touched.current.sword = n;
+    try { if (vmi) vmi.number('swordCharge').value = n; } catch (e) { console.warn(e); }
+  };
+  const changeLetter = (v) => {
+    setLetter(v);
+    touched.current.letter = v;
+    try { if (vmi) vmi.string('beltLetter').value = v; } catch (e) { console.warn(e); }
+  };
+  const changeColor = (key, hex) => {
+    if (key === 'chargeActive') setChargeActive(hex);
+    else if (key === 'chargeInactive') setChargeInactive(hex);
+    else setPendant((p) => ({ ...p, [key]: hex }));
+    touched.current.colors[key] = hex;
+    try { if (vmi) writeColor(vmi, key, hex); } catch (e) { console.warn(e); }
+  };
+
+  const pickInstance = (name) => {
+    const o = OUTFITS.find((x) => x.name === name);
+    setInstance(name);
+    setChargeActive(o.active);
+    setChargeInactive(o.inactive);
+    setPendant(o.pendant);
+    touched.current.colors = {}; // the new instance brings its own colors
+  };
+  const resetColors = () => {
+    pickInstance(instance);
+    setBindNonce((n) => n + 1); // fresh instance = authored colors
+  };
+  const pickOutfit = (o) => {
+    setOutfit(o.v);
+    pickInstance(o.name); // matching charge colors; can be overridden below
+  };
+
+  const fire = (input, key) => {
+    if (input) input.fire();
+    setFired((f) => ({ ...f, [key]: f[key] + 1 }));
+  };
+
+  const outfitName = OUTFITS[outfit].name;
+
+  return (
+    <>
+      {/* ================= HERO — LIVE DEMO ================= */}
+      <div className="layout">
+        <div className="stage">
+          <div className="pane show">
+            <div className="canvas-wrap">
+              <RiveComponent />
+            </div>
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="top-tag">
+            <span className="pulse" />
+            Live State Machine
+            <span className="update-pill">Hero Stage 3 · v1</span>
+          </div>
+          <h1>Hero Stage 3</h1>
+          <p className="sub">
+            One artboard, one state machine and one view model: appearance
+            inputs, talk and celebrate states, effect triggers, shield and
+            sword charge, colors and the belt letter.
+          </p>
+
+          <div className="group-label">
+            States and triggers
+            {!ready && <span className="locked-tag">waiting on .riv</span>}
+          </div>
+          <div className="chip-row" style={{ marginBottom: 24 }}>
+            <button className={`chip-btn ${talking ? 'on' : ''}`} disabled={!talkIn} onClick={() => setTalking((v) => !v)}>
+              <span className="chip-dot" />isTalking
+            </button>
+            <button className={`chip-btn ${celebrating ? 'on' : ''}`} disabled={!celebIn} onClick={() => setCelebrating((v) => !v)}>
+              <span className="chip-dot" />isCelebrating
+            </button>
+            <button className={`chip-btn ${sun ? 'on' : ''}`} disabled={!sunIn} onClick={() => setSun((v) => (v ? 0 : 1))}>
+              <span className="chip-dot" />Sunglasses
+            </button>
+            <button className="chip-btn" disabled={!blinkIn} onClick={() => fire(blinkIn, 'blink')}>
+              <span className="chip-dot" />Blink
+            </button>
+            <button className="chip-btn" disabled={!shieldGlintIn} onClick={() => fire(shieldGlintIn, 'shield')}>
+              <span className="chip-dot" />ShieldGlint
+            </button>
+            <button className="chip-btn" disabled={!swordGlintIn} onClick={() => fire(swordGlintIn, 'sword')}>
+              <span className="chip-dot" />SwordGlint
+            </button>
+          </div>
+
+          <div className="group-label">Outfit (outfitColor 0 – 7)</div>
+          <div className="opt-grid">
+            {OUTFITS.map((o) => (
+              <button key={o.v} className={`chip-btn ${outfit === o.v ? 'on' : ''}`} disabled={!outfitIn} onClick={() => pickOutfit(o)}>
+                <span className="sw" style={{ background: o.dot }} />{o.name}
+              </button>
+            ))}
+          </div>
+
+          <div className="group-label">Skin (skinVariants 0 – 7)</div>
+          <OptionGrid items={SKINS} value={skin} onPick={setSkin} disabled={!skinIn} label={(l) => l.replace('Skin-', '')} />
+
+          <div className="group-label">Hair style (hairVariants 0 – 4)</div>
+          <OptionGrid items={HAIR_STYLES} value={hairVar} onPick={setHairVar} disabled={!hairVarIn} label={(l) => l.replace('Hair-', '').replace('Main-Hair', 'Main')} />
+
+          <div className="group-label">Hair color (hairColor 0 – 16)</div>
+          <OptionGrid items={HAIR_COLORS} value={hairColor} onPick={setHairColor} disabled={!hairColorIn} />
+
+          <div className="group-label">Eye color (eyeColor 0 – 12)</div>
+          <OptionGrid items={EYES} value={eye} onPick={setEye} disabled={!eyeIn} label={(l) => l.replace('dark-', '')} />
+
+          <div className="group-label">Shield charge (HeroVM.shieldCharge 0 – 5)</div>
+          <div className="chip-row" style={{ marginBottom: 16 }}>
+            {[0, 1, 2, 3, 4, 5].map((n) => (
+              <button key={n} className={`chip-btn ${shield === n ? 'on' : ''}`} disabled={!vmi} onClick={() => changeShield(n)}>
+                <span className="chip-dot" />{n}
+              </button>
+            ))}
+          </div>
+          <div className="group-label">Sword charge (HeroVM.swordCharge 0 – 5)</div>
+          <div className="chip-row" style={{ marginBottom: 24 }}>
+            {[0, 1, 2, 3, 4, 5].map((n) => (
+              <button key={n} className={`chip-btn ${sword === n ? 'on' : ''}`} disabled={!vmi} onClick={() => changeSword(n)}>
+                <span className="chip-dot" />{n}
+              </button>
+            ))}
+          </div>
+
+          <div className="group-label">Belt letter (HeroVM.beltLetter)</div>
+          <div style={{ marginBottom: 24 }}>
+            <input
+              className="letter-input"
+              type="text"
+              maxLength={1}
+              value={letter}
+              disabled={!vmi}
+              onChange={(e) => {
+                const v = e.target.value.toUpperCase().replace(/[^A-Z]/g, '');
+                if (v) changeLetter(v);
+              }}
+              aria-label="Belt letter"
+            />
+          </div>
+
+          <div className="group-label">HeroVM instance (charge color pair)</div>
+          <div className="opt-grid">
+            {OUTFITS.map((o) => (
+              <button key={o.name} className={`chip-btn ${instance === o.name ? 'on' : ''}`} disabled={!rive} onClick={() => pickInstance(o.name)}>
+                <span className="sw" style={{ background: `#${o.active}` }} />{o.name}
+              </button>
+            ))}
+          </div>
+
+          <div className="group-label">Charge and pendant colors</div>
+          <div className="color-grid">
+            <ColorField label="chargeActive" value={chargeActive} onChange={(h) => changeColor('chargeActive', h)} disabled={!vmi} />
+            <ColorField label="chargeInactive" value={chargeInactive} onChange={(h) => changeColor('chargeInactive', h)} disabled={!vmi} />
+            {Object.keys(PENDANT_DEFAULTS).map((k) => (
+              <ColorField
+                key={k}
+                label={k}
+                value={pendant[k]}
+                onChange={(hex) => changeColor(k, hex)}
+                disabled={!vmi}
+              />
+            ))}
+          </div>
+          <div className="chip-row">
+            <button className="chip-btn ghost" disabled={!vmi} onClick={resetColors}>
+              <span className="chip-dot" />Reset colors to instance
+            </button>
+          </div>
+
+          <div className="state-readout">
+            <span className="live-dot" />
+            outfit: <b>{outfitName}</b> · instance: <b>{instance}</b> · shield <b>{shield}</b> · sword <b>{sword}</b> · belt <b>{letter}</b>
+          </div>
+
+          <a className="scroll-cue" href="#overview">
+            <span>Integration docs</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </a>
+        </div>
+      </div>
+
+      {/* ================= DOCUMENTATION ================= */}
+      <div className="docs">
+        <div className="docs-shell">
+          <DocsNav />
+
+          <div className="docs-body">
+            <DocSection id="overview" eyebrow="Overview" title="Two independent control layers">
+              <p>
+                The character in <code>art_hero_stage3.riv</code> is fixed
+                inside a 3000 × 3201 artboard, so do not scale it per
+                stage. It is controlled in two separate ways that do not
+                affect each other.
+              </p>
+              <div className="update-grid">
+                <div className="update-card system-a">
+                  <div className="update-card-title">State machine</div>
+                  <ul>
+                    <li><code>{SM}</code></li>
+                    <li>Outfit, eyes, hair, skin, sunglasses</li>
+                    <li><code>isTalking</code>, <code>isCelebrating</code>, glints, blink</li>
+                  </ul>
+                </div>
+                <div className="update-card">
+                  <div className="update-card-title">View model <code>{VM}</code></div>
+                  <ul>
+                    <li>Shield and sword charge, 0 to 5</li>
+                    <li>Charge and pendant colors</li>
+                    <li>Belt letter</li>
+                  </ul>
+                </div>
+              </div>
+              <p>
+                Changing <code>outfitColor</code> does not change the charge
+                colors, and switching the view model instance does not change
+                the outfit.
+              </p>
+            </DocSection>
+
+            <DocSection id="inputs" eyebrow="State machine" title="Inputs">
+              <table className="stage-table">
+                <thead>
+                  <tr><th>Input</th><th>Type</th><th>Range</th><th>Default</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>Sunglasses</code></td><td>Number</td><td>0 or 1</td><td>0</td></tr>
+                  <tr><td><code>isTalking</code></td><td>Boolean</td><td>true / false</td><td>false</td></tr>
+                  <tr><td><code>isCelebrating</code></td><td>Boolean</td><td>true / false</td><td>false</td></tr>
+                  <tr><td><code>ShieldGlint</code></td><td>Trigger</td><td>fire</td><td>n/a</td></tr>
+                  <tr><td><code>SwordGlint</code></td><td>Trigger</td><td>fire</td><td>n/a</td></tr>
+                  <tr><td><code>Blink</code></td><td>Trigger</td><td>fire</td><td>n/a</td></tr>
+                  <tr><td><code>outfitColor</code></td><td>Number</td><td>0 to 7</td><td>0</td></tr>
+                  <tr><td><code>eyeColor</code></td><td>Number</td><td>0 to 12</td><td>0</td></tr>
+                  <tr><td><code>hairColor</code></td><td>Number</td><td>0 to 16</td><td>0</td></tr>
+                  <tr><td><code>hairVariants</code></td><td>Number</td><td>0 to 4</td><td>0</td></tr>
+                  <tr><td><code>skinVariants</code></td><td>Number</td><td>0 to 7</td><td>0</td></tr>
+                </tbody>
+              </table>
+              <p>
+                Each customization input drives one Blend 1D state, so any
+                combination can be set together. Send whole numbers only:
+                a value between two stops would blend two options.
+              </p>
+            </DocSection>
+
+            <DocSection id="values" eyebrow="State machine" title="Value maps">
+              <h3>outfitColor</h3>
+              <MapTable head={['Value', 'Outfit']} rows={OUTFITS.map((o) => [o.v, o.name + (o.v === 0 ? ' (base)' : '')])} />
+              <h3>skinVariants</h3>
+              <MapTable head={['Value', 'Timeline']} rows={SKINS} code />
+              <p>The order is not light to dark. Use the table.</p>
+              <h3>hairVariants</h3>
+              <MapTable head={['Value', 'Timeline']} rows={HAIR_STYLES} code />
+              <h3>hairColor</h3>
+              <MapTable head={['Value', 'Timeline']} rows={HAIR_COLORS.map(([v, n]) => [v, `Hair_${n}`])} code />
+              <h3>eyeColor</h3>
+              <MapTable head={['Value', 'Timeline']} rows={EYES.map(([v, n]) => [v, `eye_${n}`])} code />
+              <h3>Sunglasses</h3>
+              <MapTable head={['Value', 'Timeline']} rows={[[0, 'Sunglasses_Off'], [1, 'Sunglasses_On']]} code />
+            </DocSection>
+
+            <DocSection id="viewmodel" eyebrow="View model" title={`${VM} properties`}>
+              <table className="stage-table">
+                <thead>
+                  <tr><th>Property</th><th>Type</th><th>Default (Purple)</th><th>Purpose</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>chargeActive</code></td><td>Color</td><td><code>FF2BD6</code></td><td>Lit charge segments, shield and sword</td></tr>
+                  <tr><td><code>chargeInactive</code></td><td>Color</td><td><code>5B3AA3</code></td><td>Unlit charge segments, shield and sword</td></tr>
+                  <tr><td><code>shieldCharge</code></td><td>Number</td><td>0</td><td>Shield charge level, 0 to 5</td></tr>
+                  <tr><td><code>swordCharge</code></td><td>Number</td><td>0</td><td>Sword charge level, 0 to 5</td></tr>
+                  <tr><td><code>pendantChain</code></td><td>Color</td><td><code>E8ADD0</code></td><td>Pendant chain</td></tr>
+                  <tr><td><code>pendantBack</code></td><td>Color</td><td><code>BFADE8</code></td><td>Pendant back</td></tr>
+                  <tr><td><code>pendantBase</code></td><td>Color</td><td><code>6F3FCE</code></td><td>Pendant base</td></tr>
+                  <tr><td><code>pendantAccent</code></td><td>Color</td><td><code>8559DD</code></td><td>Pendant accent</td></tr>
+                  <tr><td><code>pendantCenter</code></td><td>Color</td><td><code>9367EB</code></td><td>Pendant center gem</td></tr>
+                  <tr><td><code>beltLetter</code></td><td>String</td><td><code>A</code></td><td>Letter on the belt</td></tr>
+                </tbody>
+              </table>
+              <h3>Charge</h3>
+              <p>
+                <code>shieldCharge</code> and <code>swordCharge</code> are
+                independent. A value of N lights N of the 5 segments: 0 lights
+                none, 5 lights all. Lit segments use <code>chargeActive</code>,
+                unlit ones use <code>chargeInactive</code>, and shield and
+                sword share the same two colors.
+              </p>
+              <h3>Belt letter</h3>
+              <p>
+                A single uppercase character, A to Z. Rive does not enforce
+                this, so validate it before sending.
+              </p>
+            </DocSection>
+
+            <DocSection id="instances" eyebrow="View model" title="Instances">
+              <p>
+                Each instance carries its own charge color pair and its own
+                pendant colors. The default instance is <code>Purple</code>.
+                The instance name matches the outfit name but is not linked
+                to <code>outfitColor</code>: select the instance and set{' '}
+                <code>outfitColor</code> separately.
+              </p>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="stage-table">
+                  <thead>
+                    <tr>
+                      <th>Instance</th><th>chargeActive</th><th>chargeInactive</th>
+                      <th>pendantChain</th><th>pendantBack</th><th>pendantBase</th>
+                      <th>pendantAccent</th><th>pendantCenter</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {OUTFITS.map((o) => (
+                      <tr key={o.name}>
+                        <td>{o.name}{o.v === 0 ? ' (default)' : ''}</td>
+                        <td><code>{o.active}</code></td>
+                        <td><code>{o.inactive}</code></td>
+                        <td><code>{o.pendant.pendantChain}</code></td>
+                        <td><code>{o.pendant.pendantBack}</code></td>
+                        <td><code>{o.pendant.pendantBase}</code></td>
+                        <td><code>{o.pendant.pendantAccent}</code></td>
+                        <td><code>{o.pendant.pendantCenter}</code></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p>
+                All eight start with <code>shieldCharge = 0</code>,{' '}
+                <code>swordCharge = 0</code> and <code>beltLetter = A</code>.
+                Binding an instance also changes the pendant, because the
+                pendant colors differ per instance. You can set any of the
+                color properties directly at runtime to override the instance.
+              </p>
+              <LiveFeed
+                label="Triggers fired from this page"
+                text={
+                  fired.blink + fired.shield + fired.sword === 0
+                    ? 'waiting for first trigger…'
+                    : `${fired.blink} blink · ${fired.shield} shield glint · ${fired.sword} sword glint`
+                }
+              />
+            </DocSection>
+
+            <DocSection id="usage" eyebrow="Recommended usage" title="Showing a hero">
+              <ol className="check-list">
+                <li>Bind the <code>{VM}</code> instance whose charge colors fit the outfit (for example <code>Blue</code> with <code>outfitColor = 1</code>).</li>
+                <li>Set the customization inputs: <code>outfitColor</code>, <code>eyeColor</code>, <code>hairColor</code>, <code>hairVariants</code>, <code>skinVariants</code>, <code>Sunglasses</code>.</li>
+                <li>Set <code>shieldCharge</code>, <code>swordCharge</code> and <code>beltLetter</code>; override the charge or pendant colors only if you need different ones.</li>
+                <li>Drive <code>isTalking</code> and <code>isCelebrating</code>, and fire <code>Blink</code>, <code>ShieldGlint</code> and <code>SwordGlint</code>.</li>
+              </ol>
+            </DocSection>
+
+            <DocSection id="js" eyebrow="JavaScript" title="Web integration example">
+              <CodeBlock code={JS_EXAMPLE} />
+            </DocSection>
+
+            <DocSection id="files" eyebrow="Files" title="Where the file lives">
+              <p>
+                The <code>.riv</code> is a plain static asset, loaded by path
+                from <code>/public</code>.
+              </p>
+              <div className="tree-block">{`public/
+  art_hero_stage3.riv   artboard "Artboard" (3000 × 3201)
+                        state machine "${SM}"
+                        view model "${VM}", default instance "Purple"`}</div>
+            </DocSection>
+
+            <DocSection id="checklist" eyebrow="Integration Checklist" title="Ship it">
+              <ul className="check-list boxes">
+                <li>Load <code>art_hero_stage3.riv</code> with state machine <code>{SM}</code></li>
+                <li>Keep the character unscaled inside the artboard</li>
+                <li>Bind a <code>{VM}</code> instance, then set charge, colors and belt letter</li>
+                <li>Set the customization inputs with whole numbers inside their ranges</li>
+                <li>Drive <code>isTalking</code> / <code>isCelebrating</code>, fire the triggers</li>
+                <li>Done</li>
+              </ul>
+            </DocSection>
+
+            <footer className="docs-footer">
+              Hero Stage 3 · Rive integration docs
+            </footer>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function OptionGrid({ items, value, onPick, disabled, label }) {
+  return (
+    <div className="opt-grid">
+      {items.map(([v, name]) => (
+        <button key={v} className={`chip-btn ${value === v ? 'on' : ''}`} disabled={disabled} onClick={() => onPick(v)}>
+          {v} · {label ? label(name) : name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ColorField({ label, value, onChange, disabled }) {
+  return (
+    <label className="color-field">
+      <input
+        type="color"
+        value={`#${value.toLowerCase()}`}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value.slice(1).toUpperCase())}
+      />
+      {label}
+      <b>{value}</b>
+    </label>
+  );
+}
+
+function MapTable({ head, rows, code }) {
+  return (
+    <table className="stage-table">
+      <thead>
+        <tr>{head.map((h) => <th key={h}>{h}</th>)}</tr>
+      </thead>
+      <tbody>
+        {rows.map(([a, b]) => (
+          <tr key={a}>
+            <td>{a}</td>
+            <td>{code ? <code>{b}</code> : b}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function DocsNav() {
+  const items = [
+    ['overview', 'Overview'],
+    ['inputs', 'Inputs'],
+    ['values', 'Value Maps'],
+    ['viewmodel', 'View Model'],
+    ['instances', 'Instances'],
+    ['usage', 'Usage'],
+    ['js', 'JavaScript'],
+    ['files', 'Files'],
+    ['checklist', 'Checklist'],
+  ];
+  return (
+    <nav className="docs-nav">
+      <div className="docs-nav-label">Contents</div>
+      {items.map(([id, label]) => (
+        <a key={id} href={`#${id}`}>{label}</a>
+      ))}
+    </nav>
+  );
+}
+
+function DocSection({ id, eyebrow, title, children }) {
+  return (
+    <section id={id} className="doc-section">
+      <div className="doc-eyebrow">{eyebrow}</div>
+      <h2>{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function LiveFeed({ label, text }) {
+  return (
+    <div className="live-feed">
+      <span className="live-feed-dot" />
+      <span className="live-feed-label">{label}</span>
+      <span className="live-feed-value">{text}</span>
+    </div>
+  );
+}
+
+function CodeBlock({ code }) {
+  return <pre className="code-block"><code>{code}</code></pre>;
+}
+
+const JS_EXAMPLE = `import { Rive, Fit, Alignment, Layout } from '@rive-app/canvas'
+
+const SM = 'Adult Avatar Controller'
+
+const hero = new Rive({
+  src: '/art_hero_stage3.riv',
+  canvas: document.getElementById('canvas'),
+  stateMachines: SM,
+  autoplay: true,
+  layout: new Layout({ fit: Fit.Contain, alignment: Alignment.Center }),
+  onLoad: () => {
+    // 1. view model instance (charge colors)
+    const vm = hero.viewModelByName('HeroVM')
+    const vmi = vm.instanceByName('Blue')
+    hero.bindViewModelInstance(vmi)
+
+    vmi.number('shieldCharge').value = 3      // 0 to 5
+    vmi.number('swordCharge').value = 5
+    vmi.string('beltLetter').value = 'K'      // one uppercase letter
+    vmi.color('pendantCenter').rgb(147, 103, 235)   // optional override
+
+    // 2. state machine inputs
+    const inputs = hero.stateMachineInputs(SM)
+    const get = (name) => inputs.find((i) => i.name === name)
+
+    get('outfitColor').value = 1              // Blue
+    get('skinVariants').value = 3
+    get('hairColor').value = 4
+    get('hairVariants').value = 0
+    get('eyeColor').value = 5
+    get('Sunglasses').value = 0
+
+    get('isTalking').value = true
+    get('Blink').fire()
+    get('ShieldGlint').fire()
+  },
+})`;
